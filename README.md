@@ -1,4 +1,4 @@
-# 📋 Clipboard: Job Application Assistant
+# 📋 Clipboard: Streamline Any Repetitive Copy-pastings
 
 **Clipboard** is a professional Chrome Extension designed to streamline the tedious process of filling out job applications. Instead of digging through old resumes or documents, keep your most effective professional snippets—work history, skill summaries, and cover letter fragments—organized and ready to paste. And of course, you can use it for other copy-pasting too!
 
