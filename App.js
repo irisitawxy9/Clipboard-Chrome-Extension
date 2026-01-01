@@ -26,15 +26,17 @@ export class App {
       snippets: [],
       categories: DEFAULT_CATEGORIES,
       types: DEFAULT_TYPES,
-      activeCategoryId: 'all',
-      searchQuery: '',
+      activeCategoryId: DEFAULT_CATEGORIES[0]?.id || '',
+      activeSnippetTypeId: 'all',
       isAddModalOpen: false,
       editingSnippetId: null,
       isCategoryModalOpen: false,
       editingCategoryId: null,
       isTypeModalOpen: false,
       editingTypeId: null,
-      selectedIconKey: 'Other' // Temporary state for type icon selection
+      selectedIconKey: 'Other',
+      tempStructureName: '',
+      tempStructureColor: '#2563eb'
     };
   }
 
@@ -42,8 +44,12 @@ export class App {
     const saved = await storage.get(STORAGE_KEY);
     if (saved) {
       this.state.snippets = saved.snippets || [];
-      this.state.categories = saved.categories || DEFAULT_CATEGORIES;
+      this.state.categories = (saved.categories && saved.categories.length) ? saved.categories : DEFAULT_CATEGORIES;
       this.state.types = saved.types || DEFAULT_TYPES;
+      
+      if (!this.state.activeCategoryId || this.state.activeCategoryId === 'all') {
+        this.state.activeCategoryId = this.state.categories[0]?.id || '';
+      }
     }
     this.render();
   }
@@ -59,17 +65,26 @@ export class App {
   }
 
   render() {
-    const { snippets, categories, types, activeCategoryId, searchQuery, isAddModalOpen, editingSnippetId, isCategoryModalOpen, editingCategoryId, isTypeModalOpen, editingTypeId, selectedIconKey } = this.state;
+    const { 
+      snippets, categories, types, activeCategoryId, activeSnippetTypeId,
+      isAddModalOpen, editingSnippetId, isCategoryModalOpen, editingCategoryId, 
+      isTypeModalOpen, editingTypeId, selectedIconKey, tempStructureName, tempStructureColor 
+    } = this.state;
 
     const filtered = snippets.filter(s => {
-      const matchesCategory = activeCategoryId === 'all' || s.categoryId === activeCategoryId;
-      const matchesSearch = s.content.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
+      const matchesCategory = s.categoryId === activeCategoryId;
+      const matchesType = activeSnippetTypeId === 'all' || s.typeId === activeSnippetTypeId;
+      return matchesCategory && matchesType;
     }).sort((a, b) => b.createdAt - a.createdAt);
 
     const editingSnippet = snippets.find(s => s.id === editingSnippetId);
     const editingCategory = categories.find(c => c.id === editingCategoryId);
     const editingType = types.find(t => t.id === editingTypeId);
+    const activeCategory = categories.find(c => c.id === activeCategoryId);
+
+    // Prepare structure modal values to prevent reset
+    const currentName = tempStructureName || (isCategoryModalOpen ? (editingCategory?.name || '') : (editingType?.name || ''));
+    const currentColor = tempStructureColor || (isCategoryModalOpen ? (editingCategory?.color || '#2563eb') : (editingType?.color || '#2563eb'));
 
     this.root.innerHTML = `
       <div class="app-container">
@@ -80,12 +95,6 @@ export class App {
             <h1>Clipboard</h1>
           </div>
           <nav class="nav">
-            <div class="nav-label">Filters</div>
-            <button class="nav-item ${activeCategoryId === 'all' ? 'active' : ''}" id="btn-all">
-              <span class="dot" style="background: #cbd5e1"></span>
-              All Library
-            </button>
-            
             <div class="nav-label">Categories</div>
             ${categories.map(cat => `
               <div class="nav-item-wrapper ${activeCategoryId === cat.id ? 'active' : ''}">
@@ -127,9 +136,14 @@ export class App {
         <!-- Main Workspace -->
         <main class="main">
           <header class="header">
-            <div class="search-container">
-              <span class="search-icon">${ICONS.Search}</span>
-              <input type="text" id="search-input" placeholder="Search snippets..." value="${searchQuery}">
+            <div class="header-left">
+              <h2 class="view-title">${activeCategory ? activeCategory.name : 'Select a Category'}</h2>
+              <div class="filter-container">
+                <select id="type-filter" class="filter-select">
+                  <option value="all">All Snippet Types</option>
+                  ${types.map(t => `<option value="${t.id}" ${activeSnippetTypeId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+                </select>
+              </div>
             </div>
             <div class="actions">
               <button class="btn btn-icon" id="export-btn" title="Export Data">${ICONS.Export}</button>
@@ -142,17 +156,16 @@ export class App {
 
           <div class="content-grid">
             ${filtered.length > 0 ? filtered.map(s => {
-              const cat = categories.find(c => c.id === s.categoryId);
               const type = types.find(t => t.id === s.typeId);
               const iconSvg = TYPE_ICONS[type?.icon] || TYPE_ICONS.Hash;
               return `
                 <div class="card">
                   <div class="card-header">
                     <div class="card-badges">
-                      <span class="type-badge" title="${type?.name || 'Other'}" style="background: ${type?.color || '#64748b'}20; color: ${type?.color || '#64748b'}">
-                        ${iconSvg}
+                      <span class="type-badge-full" style="background: ${type?.color || '#64748b'}15; color: ${type?.color || '#64748b'}; border: 1px solid ${type?.color || '#64748b'}30;">
+                        <span class="type-icon-wrapper">${iconSvg}</span>
+                        <span class="type-name-label">${type?.name || 'Other'}</span>
                       </span>
-                      <span class="badge" style="background: ${cat ? cat.color : '#64748b'}">${cat ? cat.name : 'Misc'}</span>
                     </div>
                     <div class="card-actions">
                       <button class="edit-snippet-btn" data-id="${s.id}">${ICONS.Edit}</button>
@@ -168,7 +181,7 @@ export class App {
               `;
             }).join('') : `
               <div class="empty-state">
-                <p>No results found. Add a snippet or change filters.</p>
+                <p>No ${activeSnippetTypeId === 'all' ? '' : types.find(t => t.id === activeSnippetTypeId)?.name.toLowerCase()} snippets found in this category.</p>
               </div>
             `}
           </div>
@@ -187,8 +200,7 @@ export class App {
                 <div class="form-group">
                   <label>Category</label>
                   <select id="modal-cat">
-                    <option value="" ${editingSnippet && !editingSnippet.categoryId ? 'selected' : ''}>None (Misc)</option>
-                    ${categories.map(c => `<option value="${c.id}" ${editingSnippet && editingSnippet.categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                    ${categories.map(c => `<option value="${c.id}" ${editingSnippet ? (editingSnippet.categoryId === c.id ? 'selected' : '') : (activeCategoryId === c.id ? 'selected' : '')}>${c.name}</option>`).join('')}
                   </select>
                 </div>
                 <div class="form-group">
@@ -216,18 +228,18 @@ export class App {
             <div class="modal-body">
               <div class="form-group">
                 <label>Name</label>
-                <input type="text" id="structure-name-input" placeholder="e.g. Frontend" value="${isCategoryModalOpen ? (editingCategory?.name || '') : (editingType?.name || '')}">
+                <input type="text" id="structure-name-input" placeholder="e.g. Frontend" value="${currentName}">
               </div>
               <div class="form-group">
                 <label>Color Theme</label>
-                <input type="color" id="structure-color-input" value="${isCategoryModalOpen ? (editingCategory?.color || '#2563eb') : (editingType?.color || '#2563eb')}">
+                <input type="color" id="structure-color-input" value="${currentColor}">
               </div>
               ${isTypeModalOpen ? `
                 <div class="form-group">
                   <label>Icon Choice</label>
                   <div class="icon-picker-grid">
                     ${AVAILABLE_ICON_KEYS.map(key => `
-                      <button class="icon-picker-item ${selectedIconKey === key ? 'active' : ''}" data-icon="${key}" style="${selectedIconKey === key ? `border-color: ${editingType?.color || '#2563eb'}; background: ${editingType?.color || '#2563eb'}10;` : ''}">
+                      <button class="icon-picker-item ${selectedIconKey === key ? 'active' : ''}" data-icon="${key}" style="${selectedIconKey === key ? `border-color: ${currentColor}; background: ${currentColor}10;` : ''}">
                         ${TYPE_ICONS[key]}
                       </button>
                     `).join('')}
@@ -249,18 +261,26 @@ export class App {
 
   attachEvents() {
     // Basic Navigation
-    document.getElementById('btn-all')?.addEventListener('click', () => this.setState({ activeCategoryId: 'all' }));
     document.querySelectorAll('.cat-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.setState({ activeCategoryId: btn.dataset.id }));
+      btn.addEventListener('click', () => this.setState({ activeCategoryId: btn.dataset.id, activeSnippetTypeId: 'all' }));
     });
 
-    // Search
-    const searchInput = document.getElementById('search-input');
-    searchInput?.addEventListener('input', (e) => this.state.searchQuery = e.target.value);
+    // Type Filter
+    const typeFilter = document.getElementById('type-filter');
+    typeFilter?.addEventListener('change', (e) => {
+      this.setState({ activeSnippetTypeId: e.target.value });
+    });
 
-    // Modal Generic Closures
+    // Modal Closures
     const closeSnippet = () => this.setState({ isAddModalOpen: false, editingSnippetId: null });
-    const closeStructure = () => this.setState({ isCategoryModalOpen: false, isTypeModalOpen: false, editingCategoryId: null, editingTypeId: null });
+    const closeStructure = () => this.setState({ 
+      isCategoryModalOpen: false, 
+      isTypeModalOpen: false, 
+      editingCategoryId: null, 
+      editingTypeId: null,
+      tempStructureName: '',
+      tempStructureColor: ''
+    });
 
     document.getElementById('modal-close')?.addEventListener('click', closeSnippet);
     document.getElementById('modal-cancel')?.addEventListener('click', closeSnippet);
@@ -269,8 +289,8 @@ export class App {
 
     // Opening Modals
     document.getElementById('add-btn')?.addEventListener('click', () => this.setState({ isAddModalOpen: true, editingSnippetId: null }));
-    document.getElementById('new-cat-btn')?.addEventListener('click', () => this.setState({ isCategoryModalOpen: true, editingCategoryId: null }));
-    document.getElementById('new-type-btn')?.addEventListener('click', () => this.setState({ isTypeModalOpen: true, editingTypeId: null, selectedIconKey: 'Hash' }));
+    document.getElementById('new-cat-btn')?.addEventListener('click', () => this.setState({ isCategoryModalOpen: true, editingCategoryId: null, tempStructureName: '', tempStructureColor: '#2563eb' }));
+    document.getElementById('new-type-btn')?.addEventListener('click', () => this.setState({ isTypeModalOpen: true, editingTypeId: null, selectedIconKey: 'Hash', tempStructureName: '', tempStructureColor: '#2563eb' }));
 
     // Saving Snippets
     document.getElementById('modal-save')?.addEventListener('click', () => {
@@ -301,7 +321,7 @@ export class App {
         } else {
           categories.push({ id: Math.random().toString(36).substr(2, 9), name, color });
         }
-        this.setState({ categories, isCategoryModalOpen: false, editingCategoryId: null });
+        this.setState({ categories, isCategoryModalOpen: false, editingCategoryId: null, tempStructureName: '', tempStructureColor: '' });
       } else {
         let types = [...this.state.types];
         if (this.state.editingTypeId) {
@@ -309,43 +329,59 @@ export class App {
         } else {
           types.push({ id: Math.random().toString(36).substr(2, 9), name, color, icon });
         }
-        this.setState({ types, isTypeModalOpen: false, editingTypeId: null });
+        this.setState({ types, isTypeModalOpen: false, editingTypeId: null, tempStructureName: '', tempStructureColor: '' });
       }
     });
 
-    // Icon Selection logic
+    // Icon Selection logic with value preservation
     document.querySelectorAll('.icon-picker-item').forEach(btn => {
       btn.addEventListener('click', () => {
-        this.state.selectedIconKey = btn.dataset.icon;
-        this.render(); // Re-render to show selection (keeping modal open)
+        const nameInput = document.getElementById('structure-name-input');
+        const colorInput = document.getElementById('structure-color-input');
+        this.setState({ 
+          selectedIconKey: btn.dataset.icon,
+          tempStructureName: nameInput.value,
+          tempStructureColor: colorInput.value
+        });
       });
     });
 
-    // Row Actions (Edit/Delete)
+    // Row Actions
     document.querySelectorAll('.edit-snippet-btn').forEach(btn => {
       btn.addEventListener('click', () => this.setState({ isAddModalOpen: true, editingSnippetId: btn.dataset.id }));
     });
     document.querySelectorAll('.cat-edit-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.setState({ isCategoryModalOpen: true, editingCategoryId: btn.dataset.id });
+        const cat = this.state.categories.find(c => c.id === btn.dataset.id);
+        this.setState({ isCategoryModalOpen: true, editingCategoryId: btn.dataset.id, tempStructureName: cat?.name || '', tempStructureColor: cat?.color || '' });
       });
     });
     document.querySelectorAll('.type-edit-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const type = this.state.types.find(t => t.id === btn.dataset.id);
-        this.setState({ isTypeModalOpen: true, editingTypeId: btn.dataset.id, selectedIconKey: type?.icon || 'Hash' });
+        this.setState({ isTypeModalOpen: true, editingTypeId: btn.dataset.id, selectedIconKey: type?.icon || 'Hash', tempStructureName: type?.name || '', tempStructureColor: type?.color || '' });
       });
     });
 
     document.querySelectorAll('.cat-delete-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (confirm('Remove this category? Snippets won\'t be deleted.')) {
+        if (this.state.categories.length <= 1) {
+          alert("You must have at least one category.");
+          return;
+        }
+        if (confirm('Delete this category? Snippets belonging to it will be removed.')) {
+          const newCategories = this.state.categories.filter(c => c.id !== btn.dataset.id);
+          let newActiveId = this.state.activeCategoryId;
+          if (newActiveId === btn.dataset.id) {
+            newActiveId = newCategories[0].id;
+          }
           this.setState({ 
-            categories: this.state.categories.filter(c => c.id !== btn.dataset.id),
-            snippets: this.state.snippets.map(s => s.categoryId === btn.dataset.id ? { ...s, categoryId: "" } : s)
+            categories: newCategories,
+            activeCategoryId: newActiveId,
+            snippets: this.state.snippets.filter(s => s.categoryId !== btn.dataset.id)
           });
         }
       });
@@ -354,10 +390,15 @@ export class App {
     document.querySelectorAll('.type-delete-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (confirm('Remove this type? Snippets will revert to default.')) {
+        if (this.state.types.length <= 1) {
+          alert("You must have at least one snippet type.");
+          return;
+        }
+        if (confirm('Delete this type? Snippets will revert to default.')) {
+          const fallbackType = this.state.types.find(t => t.id !== btn.dataset.id);
           this.setState({ 
             types: this.state.types.filter(t => t.id !== btn.dataset.id),
-            snippets: this.state.snippets.map(s => s.typeId === btn.dataset.id ? { ...s, typeId: this.state.types[0]?.id || "" } : s)
+            snippets: this.state.snippets.map(s => s.typeId === btn.dataset.id ? { ...s, typeId: fallbackType.id } : s)
           });
         }
       });
@@ -371,7 +412,7 @@ export class App {
       });
     });
 
-    // Copying with Feedback
+    // Copying
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         navigator.clipboard.writeText(btn.dataset.content).then(() => {
@@ -386,7 +427,7 @@ export class App {
       });
     });
 
-    // Import / Export
+    // Data
     document.getElementById('export-btn')?.addEventListener('click', () => {
       const data = JSON.stringify({ snippets: this.state.snippets, categories: this.state.categories, types: this.state.types }, null, 2);
       const blob = new Blob([data], { type: 'application/json' });
