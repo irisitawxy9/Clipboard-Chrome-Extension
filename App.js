@@ -82,10 +82,6 @@ export class App {
     const editingType = types.find(t => t.id === editingTypeId);
     const activeCategory = categories.find(c => c.id === activeCategoryId);
 
-    // Prepare structure modal values to prevent reset
-    const currentName = tempStructureName || (isCategoryModalOpen ? (editingCategory?.name || '') : (editingType?.name || ''));
-    const currentColor = tempStructureColor || (isCategoryModalOpen ? (editingCategory?.color || '#2563eb') : (editingType?.color || '#2563eb'));
-
     this.root.innerHTML = `
       <div class="app-container">
         <!-- Sidebar -->
@@ -228,18 +224,18 @@ export class App {
             <div class="modal-body">
               <div class="form-group">
                 <label>Name</label>
-                <input type="text" id="structure-name-input" placeholder="e.g. Frontend" value="${currentName}">
+                <input type="text" id="structure-name-input" placeholder="e.g. Frontend" value="${tempStructureName}">
               </div>
               <div class="form-group">
                 <label>Color Theme</label>
-                <input type="color" id="structure-color-input" value="${currentColor}">
+                <input type="color" id="structure-color-input" value="${tempStructureColor}">
               </div>
               ${isTypeModalOpen ? `
                 <div class="form-group">
                   <label>Icon Choice</label>
                   <div class="icon-picker-grid">
                     ${AVAILABLE_ICON_KEYS.map(key => `
-                      <button class="icon-picker-item ${selectedIconKey === key ? 'active' : ''}" data-icon="${key}" style="${selectedIconKey === key ? `border-color: ${currentColor}; background: ${currentColor}10;` : ''}">
+                      <button class="icon-picker-item ${selectedIconKey === key ? 'active' : ''}" data-icon="${key}" style="${selectedIconKey === key ? `border-color: ${tempStructureColor}; background: ${tempStructureColor}10;` : ''}">
                         ${TYPE_ICONS[key]}
                       </button>
                     `).join('')}
@@ -292,6 +288,15 @@ export class App {
     document.getElementById('new-cat-btn')?.addEventListener('click', () => this.setState({ isCategoryModalOpen: true, editingCategoryId: null, tempStructureName: '', tempStructureColor: '#2563eb' }));
     document.getElementById('new-type-btn')?.addEventListener('click', () => this.setState({ isTypeModalOpen: true, editingTypeId: null, selectedIconKey: 'Hash', tempStructureName: '', tempStructureColor: '#2563eb' }));
 
+    // Input sync for Structure Modal (Fixes name reset bug)
+    const structureNameInput = document.getElementById('structure-name-input');
+    structureNameInput?.addEventListener('input', (e) => this.state.tempStructureName = e.target.value);
+    const structureColorInput = document.getElementById('structure-color-input');
+    structureColorInput?.addEventListener('input', (e) => {
+      this.state.tempStructureColor = e.target.value;
+      this.render(); // Re-render to update icon picker borders
+    });
+
     // Saving Snippets
     document.getElementById('modal-save')?.addEventListener('click', () => {
       const content = document.getElementById('modal-text').value.trim();
@@ -309,8 +314,8 @@ export class App {
 
     // Saving Categories / Types
     document.getElementById('structure-modal-save')?.addEventListener('click', () => {
-      const name = document.getElementById('structure-name-input').value.trim();
-      const color = document.getElementById('structure-color-input').value;
+      const name = this.state.tempStructureName.trim();
+      const color = this.state.tempStructureColor;
       const icon = this.state.selectedIconKey || 'Hash';
       if (!name) return;
 
@@ -333,16 +338,10 @@ export class App {
       }
     });
 
-    // Icon Selection logic with value preservation
+    // Icon Selection logic
     document.querySelectorAll('.icon-picker-item').forEach(btn => {
       btn.addEventListener('click', () => {
-        const nameInput = document.getElementById('structure-name-input');
-        const colorInput = document.getElementById('structure-color-input');
-        this.setState({ 
-          selectedIconKey: btn.dataset.icon,
-          tempStructureName: nameInput.value,
-          tempStructureColor: colorInput.value
-        });
+        this.setState({ selectedIconKey: btn.dataset.icon });
       });
     });
 
