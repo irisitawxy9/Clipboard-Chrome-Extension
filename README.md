@@ -11,7 +11,7 @@
 - **📂 Multi-Category Organization**: Group snippets by job role (e.g., "Frontend Engineer", "Product Manager") to keep different career tracks separate.
 - **🏷️ Customizable Snippet Types**: Assign scannable icons and custom colors to snippets (e.g., Experience, Skills, Education).
 - **⚡ One-Click Copy**: Instantly copy text to your clipboard with visual feedback.
-- - **☁️ Backup & Sync**: Export your entire library to a JSON file and import it on any other device.
+- **☁️ Backup & Sync**: Export your entire library to a JSON file and import it on any other device.
 - **📥 Import from Clipboard**: Import your previous clipboard contents into your library with a single click.
 - **💾 Local-First Storage**: Your data never leaves your computer. It uses `chrome.storage.local` for privacy and offline availability.
 - **🔍 Instant Search**: Real-time filtering to find the exact phrasing you need in seconds.
