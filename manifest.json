@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Clipboard",
+  "version": "1.5.0",
+  "description": "A professional clipboard manager for job applications. Organize snippets by category and scannable type icons.",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Open Clipboard"
+  },
+  "permissions": [
+    "storage",
+    "clipboardRead",
+    "clipboardWrite"
+  ]
+}
